@@ -122,6 +122,10 @@ export function Footer() {
         {t("footer.disclaimer")}
         <br />
         {t("footer.demoNote")}
+        {" · "}
+        <Link href="/admin" className="hover:text-ink">
+          {t("footer.areaAdmin")}
+        </Link>
       </p>
     </footer>
   );

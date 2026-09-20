@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Hero } from "@/components/Hero";
 import { CHALLENGES } from "@/lib/challenges";
 import { REGIONS } from "@/lib/regions";
@@ -9,6 +10,14 @@ import { PartnerTypeIcon } from "@/components/PartnerTypeIcon";
 import { DestinosMasBuscados } from "@/components/DestinosMasBuscados";
 import { useLocale } from "@/lib/i18n/LocaleContext";
 import type { PartnerType } from "@/lib/types";
+import {
+  getAdminChallenges,
+  getAdminPartners,
+  getAdminServices,
+  type AdminChallenge,
+  type AdminPartner,
+  type AdminService,
+} from "@/lib/adminStore";
 
 const DIFERENCIADORES_KEYS = [
   { icon: "🩺", titleKey: "home.dif1Title", textKey: "home.dif1Text" },
@@ -31,10 +40,27 @@ const SERVICIOS_KEYS: { type: PartnerType; titleKey: string; textKey: string }[]
   { type: "producto", titleKey: "home.servicioProductoTitle", textKey: "home.servicioProductoText" },
 ];
 
-const PARTNER_LOGOS = ["A", "B", "C", "D", "E", "F", "G", "H"];
+// Valor inicial determinista (igual en servidor y cliente, para no romper la
+// hidratación) — el mismo resultado que produciría lib/adminStore.ts al
+// "sembrar" los datos de ejemplo la primera vez. El useEffect de abajo lo
+// sustituye por el contenido real del panel de administración en cuanto se
+// monta en el navegador (ver resumen, sección "Área de administración").
+function defaultFeaturedChallenges(): AdminChallenge[] {
+  return CHALLENGES.map((c) => ({ ...c, status: "proximo", featured: true, testimonios: [] }));
+}
 
 export default function HomePage() {
   const { t } = useLocale();
+
+  const [featuredChallenges, setFeaturedChallenges] = useState<AdminChallenge[]>(defaultFeaturedChallenges);
+  const [featuredPartners, setFeaturedPartners] = useState<AdminPartner[]>([]);
+  const [adminServices, setAdminServices] = useState<AdminService[]>([]);
+
+  useEffect(() => {
+    setFeaturedChallenges(getAdminChallenges().filter((c) => c.featured && c.status !== "archivado"));
+    setFeaturedPartners(getAdminPartners().filter((p) => p.featured));
+    setAdminServices(getAdminServices());
+  }, []);
 
   const DIFERENCIADORES = DIFERENCIADORES_KEYS.map((d) => ({
     icon: d.icon,
@@ -42,7 +68,12 @@ export default function HomePage() {
     text: t(d.textKey),
   }));
   const PASOS = PASOS_KEYS.map((p) => ({ title: t(p.titleKey), text: t(p.textKey) }));
-  const SERVICIOS = SERVICIOS_KEYS.map((s) => ({ type: s.type, title: t(s.titleKey), text: t(s.textKey) }));
+  const SERVICIOS = SERVICIOS_KEYS.map((s) => ({
+    type: s.type,
+    title: t(s.titleKey),
+    text: t(s.textKey),
+    photo: adminServices.find((as) => as.type === s.type && as.featured)?.photo,
+  }));
 
   return (
     <>
@@ -90,7 +121,12 @@ export default function HomePage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {SERVICIOS.map((s) => (
             <div key={s.type} className="rounded-2xl border border-line bg-bg-1 p-5 text-left">
-              <PartnerTypeIcon type={s.type} />
+              {s.photo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={s.photo} alt="" className="h-[72px] w-[72px] rounded-xl object-cover" />
+              ) : (
+                <PartnerTypeIcon type={s.type} />
+              )}
               <h3 className="mt-4 font-display text-base font-semibold text-ink">{s.title}</h3>
               <p className="mt-1.5 text-[13px] leading-relaxed text-ink-muted">{s.text}</p>
             </div>
@@ -137,13 +173,21 @@ export default function HomePage() {
           <span className="h-px flex-1 bg-line" />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          {CHALLENGES.map((c) => (
+          {featuredChallenges.map((c) => (
             <div key={c.id} className="rounded-2xl border border-line bg-bg-1 p-5">
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">{c.region}</div>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{c.region}</span>
+                {c.rating !== undefined && <span className="text-xs font-semibold text-amber">★ {c.rating}</span>}
+              </div>
               <h3 className="font-display text-lg font-semibold text-ink">{c.name}</h3>
               <p className="mt-1 text-[13px] text-ink-muted">{c.description}</p>
-              <Sparkline values={c.elevation_profile} className="mt-3 h-10 w-full" />
-              <div className="mt-1 flex justify-between text-[11px] text-ink-faint">
+              {c.photo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={c.photo} alt="" className="mt-3 h-28 w-full rounded-xl object-cover" />
+              ) : (
+                <Sparkline values={c.elevation_profile} className="mt-3 h-10 w-full" />
+              )}
+              <div className="mt-2 flex justify-between text-[11px] text-ink-faint">
                 <span>{c.distance_km} km</span>
                 <span>
                   {c.elevation_gain_m} {t("home.retosUnitDPlus")}
@@ -153,6 +197,11 @@ export default function HomePage() {
                   {t("home.retosUnitMedia")}
                 </span>
               </div>
+              {c.testimonios.length > 0 && (
+                <p className="mt-3 border-t border-line pt-2.5 text-[12.5px] italic leading-relaxed text-ink-muted">
+                  “{c.testimonios[0].texto}” — {c.testimonios[0].autor}
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -165,16 +214,32 @@ export default function HomePage() {
           <span className="h-px flex-1 bg-line" />
         </div>
         <p className="mb-4 max-w-2xl text-sm text-ink-muted">{t("home.partnersText")}</p>
-        <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
-          {PARTNER_LOGOS.map((letter) => (
-            <div
-              key={letter}
-              className="flex aspect-square items-center justify-center rounded-xl border border-dashed border-line bg-bg-1 text-lg font-bold text-ink-faint grayscale"
-            >
-              {letter}
-            </div>
-          ))}
-        </div>
+        {featuredPartners.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {featuredPartners.map((p) => (
+              <Link
+                key={p.id}
+                href={`/partner/${p.id}`}
+                className="flex items-center gap-3 rounded-xl border border-line bg-bg-1 p-3 transition hover:-translate-y-0.5 hover:border-line-strong"
+              >
+                {p.photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.photo} alt="" className="h-10 w-10 flex-shrink-0 rounded-lg object-cover" />
+                ) : (
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-bg-2 text-xs font-bold text-ink-faint">
+                    {p.name.charAt(0)}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-semibold text-ink">{p.name}</div>
+                  <div className="truncate text-[11px] text-ink-faint">{p.region}</div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-ink-faint">{t("home.partnersVacio")}</p>
+        )}
       </section>
 
       {/* CTA final */}

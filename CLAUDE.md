@@ -38,6 +38,10 @@ tras descartar la primera versión en Flask/Jinja2 por su diseño. Dirección vi
   del estado del asistente
 - `app/page.tsx`, `app/checklist/[paso]/page.tsx`, `app/resultados/page.tsx`,
   `app/partner/[id]/page.tsx`, `app/checkout/page.tsx` — una ruta por pantalla
+- `lib/adminStore.ts` — capa de administración/CMS ligero (`/admin/*`), mismo patrón
+  sin backend que el resto: parceiros, desafíos y servicios "sembrados" desde
+  `lib/partners.ts`/`lib/challenges.ts` la primera vez y editables desde el panel
+  (foto, destacado, estado). Ver sección propia más abajo.
 
 ## Reglas de diseño que no hay que romper
 
@@ -82,10 +86,35 @@ tras descartar la primera versión en Flask/Jinja2 por su diseño. Dirección vi
   (`components/Stepper.tsx`), y el bloque `{paso === N && (...)}` correspondiente.
   Los campos nuevos van directo a `Intake` en `lib/types.ts`.
 
+## Área de administración (Fase 1 — demo sin backend)
+
+- `/admin` (login simulado, papel `gestor`/`administrador`) → `/admin/painel`,
+  `/admin/parceiros`, `/admin/desafios`, `/admin/servicos` y (solo administrador)
+  `/admin/relatorios`. Todo el marco compartido (guarda de sesión, nav por papel,
+  logout) vive en `components/AdminShell.tsx`.
+- `lib/adminStore.ts` es la única fuente de datos — localStorage, sin servidor.
+  **Importante:** los cambios que un gestor haga en su navegador NO se propagan a
+  otros visitantes (no hay base de datos compartida) — esto es una simulación de
+  flujo para demo/inversor, no un CMS real. Ver resumen del proyecto para el
+  detalle completo de esta decisión y la Fase 2 (base de datos + auth real +
+  almacenamiento de imágenes).
+- Registrarse en `/hazte-partner` crea un `AdminPartner` con `estado: "pendiente"`
+  en este store — así se conecta el alta de partner con la cola de revisión del
+  gestor en `/admin/parceiros`.
+- Subida de fotos (`components/PhotoUpload.tsx`) guarda el archivo como data URL en
+  localStorage — funciona para la demo con pocas fotos, pero no escala; en la
+  Fase 2 necesita almacenamiento de archivos real (S3/Cloudinary/Supabase Storage).
+- La home (`app/page.tsx`) lee parceiros/desafíos/servicios destacados de este store
+  vía `useEffect` (con un valor inicial estático idéntico a los datos "sembrados"
+  para no romper la hidratación) — mostrando foto en vez de icono cuando existe.
+
 ## Pendientes conocidos
 
 - Sin base de datos ni cuentas reales (decisión explícita de esta iteración) — el
   siguiente paso natural si Jorge quiere "realismo técnico" sería Postgres + auth.
+- El panel de administración (`/admin`) es una simulación de flujo, no un CMS real:
+  sin base de datos compartida, sin autenticación real, sin almacenamiento de
+  archivos real. Ver "Área de administración" arriba y el resumen del proyecto.
 - "Buscar más en internet" es una simulación, no una integración real.
 - Sin integraciones reales: Strava/Garmin/TrainingPeaks, procesador de pagos de
   marketplace, agente de IA real.

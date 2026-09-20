@@ -60,3 +60,25 @@ export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
     />
   );
 }
+
+export function Checkbox({
+  checked,
+  onChange,
+  children,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-muted">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-line-strong bg-bg-2 accent-accent"
+      />
+      <span>{children}</span>
+    </label>
+  );
+}
